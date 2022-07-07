@@ -1,53 +1,146 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 import * as Vibrant from "node-vibrant";
+import fs from "fs";
+import toast, { Toaster } from "react-hot-toast";
+import Head from "next/head";
 
-export default function Home() {
-  const [bg, setBg] = useState(null);
-  const [bgChill, setBgChill] = useState(null);
+const DEFAULT_IMAGE = "https://picsum.photos/500/500";
+
+export default function Home({ assets = [] }) {
+  const [bgHex, setBgHex] = useState(null);
+  const [bgChillHex, setBgChillHex] = useState(null);
+  const [bgHSL, setBgHSL] = useState(null);
+  const [bgChillHSL, setBgChillHSL] = useState(null);
   const [colorPalette, setPalette] = useState(null);
+  const [query, setQuery] = useState(null);
+  const [imgAddress, setImgAddress] = useState(DEFAULT_IMAGE);
 
-  const publicImageSrc = "/assets/tinyfaces.png"
+  const notifyInvalidImageURL = () => toast.error("URL is not valid image");
 
-  useEffect(() => {
-    Vibrant.from(publicImageSrc, {})
-      .maxColorCount(3)
-      .getPalette()
-      .then(palette => {
-        let hexColor = palette.LightVibrant.getHex()
-        let hslColor = palette.LightVibrant.getHsl()
-        console.log(hslColor);
+  const getColorAccent = (e) => {
+    e.persist();
+    const src = e.target.src;
+
+    Vibrant.from(src)
+      .maxColorCount()
+      .getSwatches()
+      .then((palette) => {
+        let hexColor = palette.Vibrant.getHex();
+        let hslColor = palette.Vibrant.getHsl();
+        let hslColorChill = [...hslColor];
 
         //make color chill
-        hslColor[1] = 0.90
-        hslColor[2] = 0.97
-        let rgbColor = Vibrant.Util.hslToRgb(...hslColor)
-        let hexChillColor = Vibrant.Util.rgbToHex(...rgbColor)
+        hslColorChill[1] = hslColorChill[1] > 0.5 ? 0.8 : hslColorChill[1];
+        hslColorChill[2] = 0.97;
 
-        setBg(hexColor)
-        setBgChill(hexChillColor)
-        setPalette(palette)
+        setBgChillHSL(hslColorChill);
+        setBgHSL(hslColor);
+
+        let rgbColor = Vibrant.Util.hslToRgb(...hslColorChill);
+        let hexChillColor = Vibrant.Util.rgbToHex(...rgbColor);
+
+        setBgHex(hexColor);
+        setBgChillHex(hexChillColor);
+
+        setPalette(palette);
       });
-  }, [])
+  };
+
+  const onClickFetch = (e) => {
+    if (query == "" || query == null) {
+      window.location.reload();
+    } else {
+      setImgAddress(query);
+    }
+  };
+
+  const onInputChange = (e) => {
+    const value = e?.target?.value;
+    setQuery(value);
+  };
+
+  const onImageError = (e) => {
+    notifyInvalidImageURL();
+    setQuery("");
+    setImgAddress(DEFAULT_IMAGE);
+  };
+
+  const onFormSubmit = (e) => {
+    e.preventDefault();
+    onClickFetch();
+  };
 
   return (
-    <div className="grid max-w-screen max-h-screen p-32 gap-8">
-
-      <div className='flex items-center justify-center gap-8'>
-        <img
-          className="flex-none w-96 h-96 object-cover overflow-clip rounded-3xl"
-          src={publicImageSrc}
-          alt="igm"
+    <div className="grid max-w-screen max-h-screen p-32 gap-4 relative shrink-0">
+      <Head>
+        <title>Color extractor</title>
+        <link
+          rel="icon"
+          href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔥</text></svg>"
         />
-        <div className='flex w-full h-96 items-center justify-center rounded-3xl' style={{backgroundColor: bg}}>
-          <p>default</p>
+      </Head>
+      <div className="grid grid-cols-3 gap-4 w-full">
+        <div className="h-96 object-cover overflow-clip rounded-3xl relative">
+          <form
+            className="group z-40 absolute mx-4 mt-4 flex gap-2"
+            onSubmit={onFormSubmit}
+          >
+            <input
+              type="url"
+              placeholder="Image url..."
+              value={query}
+              onChange={onInputChange}
+              className="focus:ring-2 focus:ring-black/10 focus:outline-none w-full leading-6 text-black/80 placeholder-black/40 rounded-full py-3 px-4 ring-1 ring-gray-200 shadow-sm transition-colors ease-in bg-white/60 backdrop-blur-md"
+            />
+            <button
+              type="button"
+              onClick={onClickFetch}
+              className="font-semibold h-12 text-sm bg-black px-6 text-white rounded-full hover:bg-gray-800"
+            >
+              Fetch
+            </button>
+          </form>
+          <img
+            className="flex w-full h-full"
+            src={imgAddress}
+            onLoad={getColorAccent}
+            layout="fill"
+            onError={onImageError}
+          />
         </div>
-        <div className='flex w-full h-96 items-center justify-center rounded-3xl' style={{backgroundColor: bgChill}}>
-          <p>Chill</p>
+
+        <div
+          className="flex w-full h-96 relative rounded-3xl"
+          style={{ backgroundColor: bgHex }}
+        >
+          <div className="bg-white shadow-sm p-4 left-4 bottom-4 absolute space-y-2 rounded-2xl font-mono">
+            <h3 className="text-sm font-semibold capitalize">default</h3>
+            <div className="grid gap-1 text-gray-500">
+              {!!bgHSL &&
+                bgHSL.map((key) => {
+                  return <p className="text-sm">{key.toFixed(2)}</p>;
+                })}
+            </div>
+          </div>
+        </div>
+        <div
+          className="flex w-full h-96 relative rounded-3xl"
+          style={{ backgroundColor: bgChillHex }}
+        >
+          <div className="bg-white shadow-sm p-4 left-4 bottom-4 absolute space-y-2 rounded-2xl font-mono">
+            <h3 className="text-sm font-semibold capitalize">Chilled</h3>
+            <div className="grid gap-1 text-gray-500">
+              {!!bgChillHSL &&
+                bgChillHSL.map((key) => {
+                  return <p className="text-sm">{key.toFixed(2)}</p>;
+                })}
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className='grid grid-cols-6 gap-8 w-full'>
-      {!!colorPalette && (
+      <div className="grid grid-cols-6 gap-4 w-full font-mono">
+        {!!colorPalette && (
           <>
             {Object.keys(colorPalette).map((key, index) => {
               const paletteHex = colorPalette[key].getHex();
@@ -55,7 +148,7 @@ export default function Home() {
               return (
                 <div
                   key={index}
-                  className="palette h-40 w-auto flex-col flex items-center justify-center rounded-3xl"
+                  className="palette h-40 w-auto flex-col flex items-center justify-center rounded-3xl text-sm font-medium"
                   style={{ background: paletteHex, color: textColor }}
                 >
                   <p className="title">{key}</p>
@@ -65,8 +158,19 @@ export default function Home() {
             })}
           </>
         )}
-
       </div>
+      <Toaster />
     </div>
-  )
+  );
 }
+
+export const getStaticProps = async () => {
+  const assetDirectory = "public/assets/";
+  const assets = fs.readdirSync(assetDirectory);
+
+  return {
+    props: {
+      assets: assets,
+    },
+  };
+};
